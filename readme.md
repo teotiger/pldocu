@@ -8,11 +8,12 @@ Simply run the install script from the setup folder inside SQL*Plus.
 
 ## Usage
 The following example extract the information from package "PLDOCU":
-		select * 
-		from table(pldocu.package_infos('PLDOCU'))
-		natural join table(pldocu.subprogram_infos('PLDOCU'))
-		natural join table(pldocu.argument_infos('PLDOCU'))
-		order by sub_id, arg_id;
+
+```select * 
+from table(pldocu.package_infos('PLDOCU'))
+natural join table(pldocu.subprogram_infos('PLDOCU'))
+natural join table(pldocu.argument_infos('PLDOCU'))
+order by sub_id, arg_id;```
 
 ## License
 PLDocu is released under the [MIT license](https://github.com/teotiger/pldocu/blob/master/license.txt).

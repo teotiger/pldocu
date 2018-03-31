@@ -24,7 +24,6 @@ is
   with constants as (
     select '((FUNCTION|PROCEDURE)\s+)' as fp,
            '((TYPE|SUBTYPE)\s+)' as ts,
---           '((A-Z]|_|\$)\s+)' as vc,
            '([A-Z0-9_\$\#])' as vc,
            '((FUNCTION|PROCEDURE|TYPE)\s+)' as fpt
       from dual
@@ -225,7 +224,7 @@ begin
     null                      as default_value
   from user_arguments
   where package_name=l_package_name
-  and data_level=0                                                              -- Vermutung! 0=direkt, 1 ist sowas wie record bei pipeline, und 2 dann auflistung was in record
+  and data_level=0                                                              -- ???  0=direct, 1=record/pipelined, 2=columns in record
   order by subprogram_id, overload, decode(position,0,999)
   )
   loop
