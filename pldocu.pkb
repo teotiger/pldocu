@@ -60,7 +60,7 @@ is
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 function parse_package(a_pkg_name in varchar2)
-  return tt_sub_pinfos result_cache
+  return tt_sub_pinfos
 is
   l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
   l_sub_pinfo t_sub_pinfo;

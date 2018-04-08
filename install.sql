@@ -3,6 +3,6 @@
 --***************************
 set scan off;
 prompt => Start installation process
-@@pldocu.pks
-@@pldocu.pkb
+@pldocu.pks
+@pldocu.pkb
 exit
