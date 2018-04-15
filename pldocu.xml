@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<items>
+  <item type="editor" node="PlSqlBaseNode" vertical="false">
+    <title><![CDATA[Documentation]]></title>
+    <query>
+      <sql><![CDATA[
+select pkg_name as obj, pkg_desc as dsc from table(pldocu.package_infos(:OBJECT_NAME))
+union all
+select sub_name as obj, sub_desc as dsc  from table(pldocu.subprogram_infos(:OBJECT_NAME))
+      ]]></sql>
+    </query>
+  </item>
+</items>
