@@ -21,7 +21,9 @@ order by sub_id, arg_id;
 
 ## User Defined Extension for Oracle SQL Developer
 
-In SQL Developer go to Tools > Preferences > Database > User Defined Extension. Click add row and select EDITOR as type. The pldocu.xml file you need to view your comments on subprograms in SQL Developer.
+In SQL Developer go to Tools > Preferences > Database > User Defined Extension.
+Click add row and select EDITOR as type. Then select the pldocu.xml file. 
+Restart...
 
 ![PLDOCU SQL Developer Extension](sqldeveloper_extension.jpg)
 
