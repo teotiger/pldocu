@@ -17,7 +17,7 @@ left join table(pldocu.argument_infos('PLDOCU')) using (pkg_id, sub_id)
 order by sub_id, arg_id;
 ```
 
-Because "PLDOCU" uses no Procedures with zero arguments, this query works too:
+Because "PLDOCU" do not use procedures with zero arguments, this query works too:
 
 ```
 select * 
