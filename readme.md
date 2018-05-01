@@ -12,6 +12,16 @@ The following example extract the information from package "PLDOCU":
 ```
 select * 
 from table(pldocu.package_infos('PLDOCU'))
+join table(pldocu.subprogram_infos('PLDOCU')) using (pkg_id)
+left join table(pldocu.argument_infos('PLDOCU')) using (pkg_id, sub_id)
+order by sub_id, arg_id;
+```
+
+Because "PLDOCU" uses no Procedures with zero arguments, this query works too:
+
+```
+select * 
+from table(pldocu.package_infos('PLDOCU'))
 natural join table(pldocu.subprogram_infos('PLDOCU'))
 natural join table(pldocu.argument_infos('PLDOCU'))
 order by sub_id, arg_id;
