@@ -25,7 +25,7 @@ is
     select '((FUNCTION|PROCEDURE)\s+)' as fp,
            '((TYPE|SUBTYPE)\s+)' as ts,
            '([A-Z0-9_\$\#])' as vc,
-           '((FUNCTION|PROCEDURE|TYPE)\s+)' as fpt
+           '(FUNCTION|PROCEDURE|TYPE)\s+' as fpt
       from dual
   ), sourcecode as (
   select us.line as line,
@@ -47,7 +47,7 @@ is
     end                                                   as arg_comment_beg,
     regexp_count(s.utt,'(.*)((;){1})')                    as statement_end,
     regexp_substr(s.utt,
-      '^\s*'||w.fpt||'('||w.vc||'*)',1,1,'x',3)           as object_name,
+      '^\s*'||w.fpt||'('||w.vc||'*)',1,1,'x',2)           as object_name,
     regexp_substr(s.utt,
       '^\s*'||w.fpt||'('||w.vc||'*)',1,1,'x',1)           as object_type,
     rtrim(s.tt,chr(10))                                   as trimmed_text,
