@@ -401,10 +401,12 @@ procedure compile_code(
 is
   success_with_compilation_error exception;
   pragma exception_init(success_with_compilation_error, -24344);
-  l_pkg_code clob not null:=a_pkg_code;
+  l_pkg_code clob not null:=trim(a_pkg_code);
   l_pkg_name varchar2(30 char);
 begin
   l_pkg_name:='SYS_PLDOCU_'||to_char(systimestamp, 'YYMMDD_HH24MISS_FF5');
+  -- remove trailing slash (if any)
+  l_pkg_code:=rtrim(l_pkg_code,'/');
   -- remove schema name (if any)
   l_pkg_code:=regexp_replace(l_pkg_code,'PACKAGE\s+"?[A-Z]+"?\.', 'PACKAGE ');
   -- replace old with new package name (header)
@@ -419,7 +421,7 @@ begin
   a_pkg_name:=l_pkg_name;
 exception
   when success_with_compilation_error 
-    then  a_pkg_name:='ERROR';
+    then a_pkg_name:='ERROR';
   when others
     then raise;
 end compile_code;

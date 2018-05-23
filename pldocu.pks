@@ -67,6 +67,7 @@ as
       a_pkg_name in varchar2)
     return tt_arg_infos pipelined deterministic;
   -- Return for each subprogram the syntax specification.
+  -- @The name of the package.
   function syntax_infos(
       a_pkg_name in varchar2)
     return tt_syn_infos pipelined deterministic;

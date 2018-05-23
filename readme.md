@@ -41,9 +41,12 @@ Restart...
 PLDocu is released under the [MIT license](https://github.com/teotiger/pldocu/blob/master/license.txt).
 
 ## Version History
+Version 0.3 – May 23, 2018
+* New (pipelined) function: SYNTAX_INFOS
+* New function: RENDER_DOCU
+
 Version 0.2 – April 15, 2018
 * Extension for SQL Developer added
 
 Version 0.1 – March 31, 2018
 * Initial release
-
