@@ -405,6 +405,8 @@ is
   l_pkg_name varchar2(30 char);
 begin
   l_pkg_name:='SYS_PLDOCU_'||to_char(systimestamp, 'YYMMDD_HH24MISS_FF5');
+  -- remove line breaks (if any)
+  l_pkg_code:=trim(both chr(10) from l_pkg_code);
   -- remove trailing slash (if any)
   l_pkg_code:=rtrim(l_pkg_code,'/');
   -- remove schema name (if any)
