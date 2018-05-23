@@ -388,7 +388,7 @@ begin
       push(s.sub_header, 'H2');
       push(s.sub_desc, 'P');           
       push('Syntax', 'H3');
-      push(s.sub_syn, 'PRE');*/
+      push(s.sub_syn, 'PRE');
     end loop subprogram_infos;
   end loop package_infos;
   
