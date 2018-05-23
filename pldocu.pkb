@@ -383,7 +383,7 @@ begin
                      sub_desc,
                      l_pkg||'.'||sub_name||syntax as sub_syn
                 from table(pldocu.subprogram_infos(l_pkg))
-           left join table(pldocu.syntax_infos(l_pkg)) using (pkg_id, sub_id))
+                join table(pldocu.syntax_infos(l_pkg)) using (pkg_id, sub_id))
     loop
       push(s.sub_header, 'H2');
       push(s.sub_desc, 'P');           

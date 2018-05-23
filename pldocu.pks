@@ -66,7 +66,7 @@ as
   function argument_infos(
       a_pkg_name in varchar2)
     return tt_arg_infos pipelined deterministic;
-  -- Return for each subprogram with arguments the syntax specification.
+  -- Return for each subprogram the syntax specification.
   function syntax_infos(
       a_pkg_name in varchar2)
     return tt_syn_infos pipelined deterministic;
