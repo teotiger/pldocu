@@ -19,6 +19,12 @@ type t_sub_pinfo is record(
   arg tt_arg_pinfos,        -- description of arguments
   exd varchar2(1000 char)); -- example description
 type tt_sub_pinfos is table of t_sub_pinfo index by pls_integer;
+-- enclosing chars for different markups and different keywords
+type t_vc2_aa is table of varchar2(30 char) index by varchar2(8 char);
+type tt_vc2_aa is table of t_vc2_aa index by varchar2(8 char);
+l_pfx tt_vc2_aa;
+l_sfx tt_vc2_aa;
+-- cursor for parse infos
 cursor cur_user_source(p_package_name in varchar2) 
 is
   with constants as (
@@ -57,6 +63,39 @@ is
   from sourcecode s
   cross join constants w
   order by line; 
+-- cursor for docu lookup infos
+cursor cur_docu_lookup 
+is
+  with fmt as (
+    select column_value as fmt 
+      from table(sys.dbms_debug_vc2coll('MD','HTML'))
+  ), code as (
+    select column_value as code 
+      from table(sys.dbms_debug_vc2coll('H1','H2','H3','P','PRE'))
+  ), eol as (
+    select chr(10) as eol from dual                                             -- TODO GLOBAL FUNCTION, !!! CRLF vs LF
+  )
+  select
+    fmt,
+    code,
+    case 
+      when fmt='HTML' then '<'||lower(code)||'>'
+      when fmt='MD' then
+        case code when 'H1'   then '# '
+                  when 'H2'   then '## '
+                  when 'H3'   then '### '
+                  when 'P'    then ''
+                  when 'PRE'  then '```'||eol
+        end
+    end as pfx,
+    case
+      when fmt='HTML' then '</'||lower(code)||'>'||eol
+      when fmt='MD' then
+        case code when 'P' then eol
+                  when 'PRE' then eol||'```'||eol
+        end
+    end||eol as sfx
+  from fmt, code, eol;
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 function parse_package(a_pkg_name in varchar2)
@@ -237,6 +276,53 @@ begin
   return;
 end argument_infos;
 --------------------------------------------------------------------------------
+function syntax_infos(a_pkg_name in varchar2)
+  return tt_syn_infos pipelined deterministic
+is
+  l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
+begin
+  for r in (
+  with base_info as (
+    select object_id,
+           subprogram_id,
+           position,
+           count(argument_name) over (partition by subprogram_id) as cnt_param,
+           case when position>0                                                 -- 0=return from function 
+            then '  '
+            ||rpad(lower(argument_name), 
+                   max(length(argument_name)) over (partition by subprogram_id)+2,
+                   ' ')
+            ||rpad(in_out, max(case when position>0 then length(in_out) end) over (partition by subprogram_id),' ')
+            ||'  '
+            ||data_type
+           end as fmt_param,
+           case when position=0 
+            then chr(10)||'RETURN '||case when data_type='TABLE' then case when type_owner<>user then type_owner||'.' end||type_name||'.'||type_subname else data_type end||';'
+           end as fmt_return
+      from user_arguments
+     where package_name=l_package_name
+       and data_level=0                                                         -- 1=Records, 2=DataTypes in Record
+  )
+    select object_id,
+           subprogram_id,
+           case when count(*)>1 then ' (' end
+           ||chr(10)
+           ||listagg(fmt_param,','||chr(10)) within group (order by position)
+           ||case 
+              when max(fmt_return) is null then ');' 
+              when max(cnt_param)>0 then ')'||max(fmt_return)
+              else max(fmt_return) 
+            end 
+           as syntax
+      from base_info
+  group by object_id, subprogram_id
+  order by subprogram_id
+  )
+  loop
+    pipe row(r);
+  end loop;
+end syntax_infos;
+--------------------------------------------------------------------------------
 procedure parse_debug(
     a_pkg_name in varchar2 )
 is
@@ -273,6 +359,42 @@ begin
   end loop;
 end parse_debug;
 --------------------------------------------------------------------------------
+function render_docu(
+    a_pkg_name in varchar2,
+    a_fmt_name in varchar2)
+  return varchar2 deterministic
+is
+  l_pkg user_objects.object_name%type not null:=upper(a_pkg_name);
+  l_fmt varchar2(30 char) not null:=upper(a_fmt_name);
+  l_out varchar2(4000 char):='';
+  procedure push(p_txt in varchar2, p_code in varchar2 default null) is
+  begin
+    l_out:=l_out||l_pfx(l_fmt)(p_code)||p_txt||l_sfx(l_fmt)(p_code);
+  end;
+begin
+  <<package_infos>>
+  for p in (select pkg_name, pkg_desc from table(pldocu.package_infos(l_pkg))) 
+  loop
+    push(p.pkg_name, 'H1');
+    push(p.pkg_desc, 'P');
+    
+    <<subprogram_infos>>
+    for s in (select sub_type||' '||sub_name as sub_header,
+                     sub_desc,
+                     l_pkg||'.'||sub_name||syntax as sub_syn
+                from table(pldocu.subprogram_infos(l_pkg))
+           left join table(pldocu.syntax_infos(l_pkg)) using (pkg_id, sub_id))
+    loop
+      push(s.sub_header, 'H2');
+      push(s.sub_desc, 'P');           
+      push('Syntax', 'H3');
+      push(s.sub_syn, 'PRE');*/
+    end loop subprogram_infos;
+  end loop package_infos;
+  
+  return l_out;
+end render_docu;
+--------------------------------------------------------------------------------
 procedure compile_code(
     a_pkg_code in clob,
     a_pkg_name out nocopy varchar2)
@@ -302,5 +424,12 @@ exception
     then raise;
 end compile_code;
 --------------------------------------------------------------------------------
+begin
+  <<parse_docu_lookup>>
+  for i in cur_docu_lookup
+  loop 
+    l_pfx(i.fmt)(i.code):=i.pfx;
+    l_sfx(i.fmt)(i.code):=i.sfx;
+  end loop parse_docu_lookup;
 end pldocu;
 /
