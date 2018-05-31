@@ -1,8 +1,10 @@
-CREATE OR REPLACE package body pldocu
+create or replace package body pldocu
 as
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 c_package_type constant user_objects.object_type%type:='PACKAGE';
+eol varchar2(2 char);
+sep varchar2(1 char);
 -- argument parse info
 type t_arg_pinfo is record(
   dsc varchar2(1000 char),  -- argument description text
@@ -20,8 +22,9 @@ type t_sub_pinfo is record(
   exd varchar2(1000 char)); -- example description
 type tt_sub_pinfos is table of t_sub_pinfo index by pls_integer;
 -- enclosing chars for different markups and different keywords
-type t_vc2_aa is table of varchar2(30 char) index by varchar2(8 char);
-type tt_vc2_aa is table of t_vc2_aa index by varchar2(8 char);
+type t_vc2_aa is table of varchar2(1000 char) index by varchar2(30 char);
+type tt_vc2_aa is table of t_vc2_aa index by varchar2(30 char);
+l_t9n tt_vc2_aa;
 l_pfx tt_vc2_aa;
 l_sfx tt_vc2_aa;
 -- cursor for parse infos
@@ -56,10 +59,10 @@ is
       '^\s*'||w.fpt||'('||w.vc||'*)',1,1,'x',2)           as object_name,
     regexp_substr(s.utt,
       '^\s*'||w.fpt||'('||w.vc||'*)',1,1,'x',1)           as object_type,
-    rtrim(s.tt,chr(10))                                   as trimmed_text,
+    rtrim(s.tt,eol)                                       as trimmed_text,
     trim(regexp_substr(s.tt,'(^\s*--\s*)(.*)',1,1,'x',2)) as trimmed_comment,
     regexp_substr(s.tt,'{(.*)}\s$',1,1,'ix',1)            as author_name,
-    regexp_substr(s.tt,'\[(.*)\]\s$',1,1,'ix',1)          as example_value
+    regexp_substr(s.tt,'\[(.*)\]\s+$',1,1,'ix',1)         as example_value
   from sourcecode s
   cross join constants w
   order by line; 
@@ -68,34 +71,98 @@ cursor cur_docu_lookup
 is
   with fmt as (
     select column_value as fmt 
-      from table(sys.dbms_debug_vc2coll('MD','HTML'))
+      from table(sys.dbms_debug_vc2coll('MD','HTML','RST'))
   ), code as (
     select column_value as code 
-      from table(sys.dbms_debug_vc2coll('H1','H2','H3','P','PRE'))
-  ), eol as (
-    select chr(10) as eol from dual                                             -- TODO GLOBAL FUNCTION, !!! CRLF vs LF
+      from table(sys.dbms_debug_vc2coll('META',
+                                        'H1','H2','H3','P','PRE',
+                                        'THEAD','THSEP','TCELL','TCSEP','TFOOT'))
+  ), newline as (
+    select eol as eol from dual
   )
   select
     fmt,
     code,
     case 
-      when fmt='HTML' then '<'||lower(code)||'>'
+      when fmt='HTML' then
+        case code when 'THEAD'  then '<table><thead><tr><th>'
+                  when 'THSEP'  then '</th><th>'
+                  when 'TCELL'  then '<tr><td>'
+                  when 'TCSEP'  then '</td><td>'
+                  when 'TFOOT'  then null
+                                else '<'||lower(code)||'>'
+        end
       when fmt='MD' then
-        case code when 'H1'   then '# '
-                  when 'H2'   then '## '
-                  when 'H3'   then '### '
-                  when 'P'    then ''
-                  when 'PRE'  then '```'||eol
+        case code when 'H1'     then '# '
+                  when 'H2'     then '## '
+                  when 'H3'     then '### '
+                  when 'P'      then ''
+                  when 'PRE'    then '```PLSQL'||eol
+                  when 'THEAD'  then '| '
+                  when 'THSEP'  then ' | '
+                  when 'TCELL'  then '| '
+                  when 'TCSEP'  then ' | '
+        end
+      when fmt='RST' then
+        case code when 'META'   then '===================='||eol||
+                                     'PLDOCU documentation'||eol||
+                                     '===================='||eol||eol||
+                                     '------------------------'||eol||
+                                     'Created from PLSQL code.'||eol||
+                                     '------------------------'||eol||eol
+                  when 'PRE'    then '.. code-block:: SQL'||eol||eol
+                  when 'THEAD'  then '='||eol
+                  when 'THSEP'  then ' '
+                  when 'TCSEP'  then ' '
         end
     end as pfx,
     case
-      when fmt='HTML' then '</'||lower(code)||'>'||eol
+      when fmt='HTML' then 
+        case code when 'THEAD'  then '</th></tr></thead><tbody>'
+                  when 'TCELL'  then '</td></tr>'
+                  when 'TFOOT'  then '</tbody></table>'
+                                else '</'||lower(code)||'>'||eol
+        end
       when fmt='MD' then
         case code when 'P' then eol
                   when 'PRE' then eol||'```'||eol
+                  when 'THEAD'  then ' |'||eol||'|---|---|'
+                  when 'TCELL'  then ' |'
+        end
+      when fmt='RST' then
+        case code when 'H1'     then eol||'='||eol
+                  when 'H2'     then eol||'-'||eol
+                  when 'H3'     then eol||'`'||eol
+                  when 'P'      then eol
+                  when 'PRE'    then eol
+                  when 'THEAD'  then eol||'='||eol 
+                  when 'TFOOT'  then eol||'='
         end
     end||eol as sfx
-  from fmt, code, eol;
+  from fmt, code, newline;
+-- cursor for translation of keywords
+cursor cur_translation
+is
+  with lang as (
+  select column_value as lng
+    from table(sys.dbms_debug_vc2coll('en','de','es'))
+  ), code as (
+  select column_value as cd
+    from table(sys.dbms_debug_vc2coll('Parameter','Parameters','Description'))
+  )  
+  select 
+    lng,
+    cd,
+    case lng 
+      when 'de' then decode(cd,'Parameters','Parameter',
+                               'Parameter','Parametername',
+                               'Description','Parameterbeschreibung',
+                            cd)
+      when 'es' then decode(cd,'Description','Descripción',
+                            cd)
+      else cd
+    end as val
+  from lang, code;
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 function parse_package(a_pkg_name in varchar2)
@@ -183,14 +250,14 @@ function package_infos(a_pkg_name in varchar2)
   return tt_pkg_infos pipelined deterministic
 is
   l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
-  l_sub_infos tt_sub_pinfos:=parse_package(l_package_name);
+  l_sub_pinfos tt_sub_pinfos:=parse_package(l_package_name);
 begin
   for r in (
   select 
     object_id           as pkg_id,
     object_name         as pkg_name,
-    l_sub_infos(1).pkg  as pkg_desc,
-    l_sub_infos(1).par  as pkg_author,
+    l_sub_pinfos(1).pkg  as pkg_desc,
+    l_sub_pinfos(1).par  as pkg_author,
     (
       select max("AUTHID") 
         from user_procedures 
@@ -212,7 +279,7 @@ function subprogram_infos(a_pkg_name in varchar2)
   return tt_sub_infos pipelined deterministic
 is
   l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
-  l_sub_infos tt_sub_pinfos:=parse_package(l_package_name);
+  l_sub_pinfos tt_sub_pinfos:=parse_package(l_package_name);
 begin
   for r in (
   select 
@@ -230,9 +297,9 @@ begin
   order by subprogram_id, overload
   ) 
   loop
-    r.sub_desc:=l_sub_infos(r.sub_id).dsc;
-    r.sub_author:=l_sub_infos(r.sub_id).sar;
-    r.sub_type:=l_sub_infos(r.sub_id).typ;
+    r.sub_desc:=l_sub_pinfos(r.sub_id).dsc;
+    r.sub_author:=l_sub_pinfos(r.sub_id).sar;
+    r.sub_type:=l_sub_pinfos(r.sub_id).typ;
     pipe row(r);
   end loop;
   return;
@@ -242,7 +309,7 @@ function argument_infos(a_pkg_name in varchar2 )
   return tt_arg_infos pipelined deterministic
 is
   l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
-  l_sub_infos tt_sub_pinfos:=parse_package(l_package_name);
+  l_sub_pinfos tt_sub_pinfos:=parse_package(l_package_name);
 begin
   for r in (
   select 
@@ -267,26 +334,26 @@ begin
   order by subprogram_id, overload, decode(position,0,999)
   )
   loop
-    if l_sub_infos(r.sub_id).arg is not null and r.arg_pos>0 then
-      r.arg_desc:=l_sub_infos(r.sub_id).arg(r.arg_pos).dsc;
-      r.arg_exam:=l_sub_infos(r.sub_id).arg(r.arg_pos).exv;      
+    if l_sub_pinfos(r.sub_id).arg is not null and r.arg_pos>0 then
+      r.arg_desc:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).dsc;
+      r.arg_exam:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).exv;      
     end if;
     pipe row(r);
   end loop;
   return;
 end argument_infos;
 --------------------------------------------------------------------------------
-function syntax_infos(a_pkg_name in varchar2)
-  return tt_syn_infos pipelined deterministic
+function subprogram_argument_infos(a_pkg_name in varchar2)
+  return tt_sa_infos pipelined deterministic
 is
   l_package_name user_objects.object_name%type not null:=upper(a_pkg_name);
 begin
   for r in (
-  with base_info as (
-    select object_id,
-           subprogram_id,
-           position,
-           count(argument_name) over (partition by subprogram_id) as cnt_param,
+  with syntax_info as (
+    select object_id      as pkg_id,
+           subprogram_id  as sub_id,
+           position       as arg_pos,
+           argument_name  as arg_name,
            case when position>0                                                 -- 0=return from function 
             then '  '
             ||rpad(lower(argument_name), 
@@ -295,33 +362,73 @@ begin
             ||rpad(in_out, max(case when position>0 then length(in_out) end) over (partition by subprogram_id),' ')
             ||'  '
             ||data_type
-           end as fmt_param,
+           end as args_fmt,
            case when position=0 
-            then chr(10)||'RETURN '||case when data_type='TABLE' then case when type_owner<>user then type_owner||'.' end||type_name||'.'||type_subname else data_type end||';'
-           end as fmt_return
+            then case when data_type='TABLE' 
+                        then case when type_owner<>user 
+                              then type_owner||'.' 
+                             end||type_name||'.'||type_subname 
+                        else data_type 
+                 end
+           end as return_type,           
+           case when position=0 and data_type='TABLE' 
+            then 1
+           end as is_pipelined,
+           ora_hash(pls_type) as pls_type_hash,
+           ora_hash(data_type) as sql_type_hash
       from user_arguments
      where package_name=l_package_name
        and data_level=0                                                         -- 1=Records, 2=DataTypes in Record
+  ),
+  argument_info as (
+    select pkg_id,
+           sub_id,
+           arg_pos,
+           arg_name||sep||arg_desc as args,
+           arg_exam
+      from table(pldocu.argument_infos(l_package_name))
+     where arg_pos>0
   )
-    select object_id,
-           subprogram_id,
-           case when count(*)>1 then ' (' end
-           ||chr(10)
-           ||listagg(fmt_param,','||chr(10)) within group (order by position)
-           ||case 
-              when max(fmt_return) is null then ');' 
-              when max(cnt_param)>0 then ')'||max(fmt_return)
-              else max(fmt_return) 
-            end 
-           as syntax
-      from base_info
-  group by object_id, subprogram_id
-  order by subprogram_id
+    select pkg_id, 
+           sub_id,
+           case when count(*)>1 or (max(return_type) is null and count(*)=1) 
+            then ' (' 
+           end
+           ||eol
+           ||listagg(args_fmt,','||eol) within group (order by arg_pos)
+           ||case when max(return_type) is null 
+              then ')' 
+              else 
+                case when count(arg_name)>0 then ')' end
+                ||eol||'RETURN '||max(return_type)
+            end ||';'
+           as syntax,
+           listagg(args, eol) within group (order by arg_pos) as arguments,
+           -- example?
+           case 
+            when max(arg_exam) is null 
+              then null
+            -- procedure?
+            when max(return_type) is null
+              then 'BEGIN >procedure< END;'
+            -- function pipelined?
+            when sum(is_pipelined)=1
+              then 'SELECT *'||eol||'  FROM TABLE('||lower(max(return_type))||') >pipelined function<;'
+            -- SQL function?
+            when sum(sql_type_hash)=sum(pls_type_hash)
+              then 'SELECT >sql function< FROM dual;'
+            -- PLSQL function
+              else 'DECLARE BEGIN >pslql function< END;'              
+           end examples
+      from syntax_info si
+ left join argument_info ai using (pkg_id, sub_id, arg_pos)
+  group by pkg_id, sub_id
+  order by sub_id
   )
   loop
     pipe row(r);
   end loop;
-end syntax_infos;
+end subprogram_argument_infos;
 --------------------------------------------------------------------------------
 procedure parse_debug(
     a_pkg_name in varchar2 )
@@ -367,11 +474,86 @@ is
   l_pkg user_objects.object_name%type not null:=upper(a_pkg_name);
   l_fmt varchar2(30 char) not null:=upper(a_fmt_name);
   l_out varchar2(4000 char):='';
-  procedure push(p_txt in varchar2, p_code in varchar2 default null) is
+  l_lang varchar2(2 char);
+  l_len pls_integer;
+  l_ibeg simple_integer:=0;
+  l_iend simple_integer:=0;
+  procedure push(a_txt in varchar2, a_code in varchar2 default null) 
+  is
+    l_prefix varchar2(255 char):=l_pfx(l_fmt)(a_code);
+    l_suffix varchar2(255 char):=l_sfx(l_fmt)(a_code);
+    l_txt varchar2(4000 char):=a_txt;
   begin
-    l_out:=l_out||l_pfx(l_fmt)(p_code)||p_txt||l_sfx(l_fmt)(p_code);
-  end;
+    if l_fmt='RST' then
+      if a_code in ('H1','H2','H3') then
+        l_prefix:=replace(l_prefix,
+                          substr(l_prefix,1,1),
+                          lpad(substr(l_prefix,1,1),
+                               length(l_txt),
+                               substr(l_prefix,1,1))
+                         ); 
+        l_suffix:=replace(l_suffix,
+                          substr(l_suffix,2,1),
+                          lpad(substr(l_suffix,2,1),
+                               length(l_txt),
+                               substr(l_suffix,2,1))
+                         );
+      elsif a_code in ('THEAD') then
+        l_prefix:=lpad('=',l_len,'=')||' '||lpad('=',l_len,'=')||eol;
+        l_suffix:=eol||lpad('=',l_len,'=')||' '||lpad('=',l_len,'=')||eol;--||eol;
+      elsif a_code ='TFOOT' then
+        l_suffix:=lpad('=',l_len,'=')||' '||lpad('=',l_len,'=')||eol||eol;
+      elsif a_code='PRE' then
+        l_txt:=replace(l_txt,eol,eol||'  ');
+        l_txt:='  '||l_txt;
+      end if;
+    end if;
+    
+    l_out:=l_out||l_prefix||l_txt||l_suffix;
+  end push;
+  procedure set_max_col_len(p_snippet in varchar2) is
+  begin
+    l_len:=0;
+    l_ibeg:=0;
+    l_iend:=instr(p_snippet, eol);
+    if l_iend=0 then
+      l_iend:=length(p_snippet)+1; 
+    end if;
+    
+    while(l_iend>0) loop
+      l_ibeg:=0;
+      l_len:=greatest(l_len,length(
+      substr(
+        substr(p_snippet, l_ibeg+1, l_iend-l_ibeg-1),
+        l_ibeg+1,
+        instr(substr(p_snippet, l_ibeg+1, l_iend-l_ibeg-1),sep,l_ibeg+1)
+      )
+      ));
+      l_ibeg:=l_iend;
+      l_iend:=instr(p_snippet, eol, l_ibeg+1);  
+    end loop;
+    if l_ibeg-1<> length(p_snippet) then
+      l_ibeg:=0;
+      l_len:=greatest(l_len,length(
+      substr(
+        substr(p_snippet, l_ibeg+1),
+        l_ibeg+1,
+        instr(substr(p_snippet, l_ibeg+1),sep,l_ibeg+1)
+      )
+      ));
+    end if;
+    
+    l_len:=greatest(l_len,length(l_t9n(l_lang)('Parameter')));
+    l_len:=greatest(l_len,length(l_t9n(l_lang)('Description')));
+  end set_max_col_len;
 begin
+  l_lang:=case userenv('lang')
+            when 'D' then 'de'
+            when 'E' then 'es'
+            else 'en'
+          end;
+  
+  push(null, 'META');
   <<package_infos>>
   for p in (select pkg_name, pkg_desc from table(pldocu.package_infos(l_pkg))) 
   loop
@@ -381,18 +563,92 @@ begin
     <<subprogram_infos>>
     for s in (select sub_type||' '||sub_name as sub_header,
                      sub_desc,
-                     l_pkg||'.'||sub_name||syntax as sub_syn
+                     l_pkg||'.'||sub_name||syntax as sub_syn,
+                     arguments as sub_arguments
                 from table(pldocu.subprogram_infos(l_pkg))
-                join table(pldocu.syntax_infos(l_pkg)) using (pkg_id, sub_id))
+                join table(pldocu.subprogram_argument_infos(l_pkg)) using (pkg_id, sub_id))
     loop
       push(s.sub_header, 'H2');
       push(s.sub_desc, 'P');           
       push('Syntax', 'H3');
       push(s.sub_syn, 'PRE');
+      if s.sub_arguments is not null then
+        push(l_t9n(l_lang)('Parameters'), 'H3');
+        set_max_col_len(s.sub_arguments);
+        -- TABLE HEADER
+        push(replace(case when l_fmt='RST'
+                      then rpad(l_t9n(l_lang)('Parameter'),l_len,' ')||sep||l_t9n(l_lang)('Description')
+                      else l_t9n(l_lang)('Parameter')||sep||l_t9n(l_lang)('Description')
+                     end,
+                     sep,
+                     l_pfx(l_fmt)('THSEP')
+                    ), 'THEAD');
+        -- TABLE BODY
+        l_ibeg:=0;
+        l_iend:=instr(s.sub_arguments, eol);
+        if l_iend=0 then
+          l_iend:=length(s.sub_arguments)+1; 
+        end if;
+        
+        while(l_iend>0) loop
+          case when l_fmt='RST' then
+          push(
+            rpad(
+            substr(
+              substr(s.sub_arguments, l_ibeg+1, l_iend-l_ibeg-1),
+              1,
+              instr(substr(s.sub_arguments, l_ibeg+1, l_iend-l_ibeg-1),sep)-1
+            )
+            ,l_len,' ')||l_pfx(l_fmt)('TCSEP')||
+            --||'°'||
+            substr(
+              substr(s.sub_arguments, l_ibeg+1, l_iend-l_ibeg-1),
+              instr(substr(s.sub_arguments, l_ibeg+1, l_iend-l_ibeg-1),sep)+1
+            ),
+          'TCELL');
+          else
+          push(replace(substr(s.sub_arguments, l_ibeg+1, l_iend-l_ibeg-1),
+                       sep,
+                       l_pfx(l_fmt)('TCSEP')
+                      ), 'TCELL');
+          end case;
+          l_ibeg:=l_iend;
+          l_iend:=instr(s.sub_arguments, eol, l_ibeg+1);  
+        end loop;
+        if l_ibeg-1<> length(s.sub_arguments) then
+        case when l_fmt='RST' then
+          push(
+            rpad(
+            substr(
+              substr(s.sub_arguments, l_ibeg+1),
+              1,
+              instr(substr(s.sub_arguments, l_ibeg+1),sep)-1
+            )
+            ,l_len,' ')||l_pfx(l_fmt)('TCSEP')||
+            --||'°'||
+            substr(
+              substr(s.sub_arguments, l_ibeg+1),
+              instr(substr(s.sub_arguments, l_ibeg+1),sep)+1
+            ),
+          'TCELL');
+          else
+          push(replace(substr(s.sub_arguments, l_ibeg+1),
+                       sep,
+                       l_pfx(l_fmt)('TCSEP')
+                      ), 'TCELL');
+          end case;
+        end if;
+          
+        -- TABLE FOOTER
+        push(null, 'TFOOT');
+      end if;
+    
     end loop subprogram_infos;
   end loop package_infos;
   
   return l_out;
+  -- CHECK html => https://validator.w3.org/#validate_by_input+with_options
+  -- CHECK rst => http://rst.ninjs.org
 end render_docu;
 --------------------------------------------------------------------------------
 procedure compile_code(
@@ -406,7 +662,7 @@ is
 begin
   l_pkg_name:='SYS_PLDOCU_'||to_char(systimestamp, 'YYMMDD_HH24MISS_FF5');
   -- remove line breaks (if any)
-  l_pkg_code:=trim(both chr(10) from l_pkg_code);
+  l_pkg_code:=trim(both eol from l_pkg_code);
   -- remove trailing slash (if any)
   l_pkg_code:=rtrim(l_pkg_code,'/');
   -- remove schema name (if any)
@@ -429,11 +685,24 @@ exception
 end compile_code;
 --------------------------------------------------------------------------------
 begin
-  <<parse_docu_lookup>>
+  eol:=case when instr(upper(dbms_utility.port_string),'WIN')>0 
+              then chr(13)||chr(10)
+            when instr(upper(dbms_utility.port_string),'LIN')>0 
+              then chr(10)
+            else chr(10)
+       end;
+  sep:=chr(9);
+
+  <<set_translations>>
+  for i in cur_translation
+  loop 
+    l_t9n(i.lng)(i.cd):=i.val;
+  end loop set_translations;
+  
+  <<docu_lookup>>
   for i in cur_docu_lookup
   loop 
     l_pfx(i.fmt)(i.code):=i.pfx;
     l_sfx(i.fmt)(i.code):=i.sfx;
-  end loop parse_docu_lookup;
+  end loop docu_lookup;
 end pldocu;
-/

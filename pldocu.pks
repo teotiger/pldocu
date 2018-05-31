@@ -1,4 +1,4 @@
-CREATE OR REPLACE package pldocu authid current_user
+create or replace package pldocu authid current_user
   -- Package to create documentation from PL/SQL packages. {teotiger}
 as
   /****************************************************************************
@@ -36,17 +36,19 @@ as
     is_in         integer,
     is_out        integer,
     default_value varchar2(4000 char));
-  type t_syn_info is record(
+  type t_sa_info is record(
     pkg_id        user_objects.object_id%type,
     sub_id        user_procedures.subprogram_id%type,
-    syntax        varchar2(4000 char));
+    syntax        varchar2(4000 char),
+    arguments     varchar2(4000 char),
+    examples      varchar2(4000 char));
   /****************************************************************************
   *** COLLECTION TYPES
   ****************************************************************************/
   type tt_pkg_infos is table of t_pkg_info;
   type tt_sub_infos is table of t_sub_info;
   type tt_arg_infos is table of t_arg_info;
-  type tt_syn_infos is table of t_syn_info;
+  type tt_sa_infos is table of t_sa_info;
   /****************************************************************************
   *** SUBPROGRAMS
   ****************************************************************************/
@@ -66,18 +68,19 @@ as
   function argument_infos(
       a_pkg_name in varchar2)
     return tt_arg_infos pipelined deterministic;
-  -- Return for each subprogram the syntax specification.
+  -- Return for each subprogram the syntax specification, a tabular overview of
+  -- parameters and a example code snippet.
   -- @The name of the package.
-  function syntax_infos(
+  function subprogram_argument_infos(
       a_pkg_name in varchar2)
-    return tt_syn_infos pipelined deterministic;
+    return tt_sa_infos pipelined deterministic;
   -- Write information about the parsing process to DBMS_OUTPUT.
-  -- @The name of the package.
+  -- @The name of the package. [PLUTIL]
   procedure parse_debug(
       a_pkg_name in varchar2);
   -- Return all information together in a document format for further usage.
   -- @The name of the package. [PLDOCU]   
-  -- @Valid format name like Markdown/MD, HTML or reStructuredText/RST. [MD]   
+  -- @Valid format name like HTML, MD (Markdown) or RST (reStructuredText). [MD]   
   function render_docu(
       a_pkg_name in varchar2,
       a_fmt_name in varchar2)
@@ -90,4 +93,3 @@ as
       a_pkg_code in clob,
       a_pkg_name out nocopy varchar2);
 end pldocu;
-/
