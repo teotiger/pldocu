@@ -3,7 +3,7 @@
 ## Introduction
 PLDocu is a PL/SQL Package to extract the necessary information from your source code to build a documentation.
 
-It provides table functions similarly to the data dictionary views and a function to get a full documentation from a package. The structure follows the documentation from Oracle. The output can be different markup like HTML, Markdown or reST.
+It provides pipelined table functions similarly to the data dictionary views and a function to get a full documentation from a package. The structure follows the API Reference online documentation from Oracle. The output can be different markup like HTML, Markdown or reST.
 
 ## Installation
 Simply run the install script from the setup folder inside SQL*Plus or SQL Developer.
@@ -44,8 +44,8 @@ PLDocu is released under the [MIT license](https://github.com/teotiger/pldocu/bl
 
 ## Version History
 Version 0.3.1 – May 31, 2018
-* Various improvements in RENDER_DOCU (reStructuredText as output format, translation of keywords, parameter section)
-* Replacement of SYNTAX_INFOS with a new extended function SUBPROGRAM_ARGUMENT_INFOS
+* Various improvements in RENDER_DOCU (reStructuredText as output format, translation of keywords, new parameter section)
+* Replacement of SYNTAX_INFOS with a new extended pipelined table function SUBPROGRAM_ARGUMENT_INFOS
 * APEX example application
 
 Version 0.3 – May 23, 2018
