@@ -325,7 +325,13 @@ begin
     sequence                  as arg_seq,
     position                  as arg_pos,
     pls_type                  as pls_type,
-    data_type                 as sql_type,
+    case when instr(data_type,'TABLE')>0
+      then case when type_owner<>user 
+            then type_owner||'.' 
+           end
+           ||type_name||'.'||type_subname 
+      else data_type 
+    end                       as sql_type,
     to_number(null)           as is_default,
     instr(in_out,'IN')        as is_in,
     sign(instr(in_out,'OUT')) as is_out,
@@ -336,6 +342,7 @@ begin
   order by subprogram_id, overload, decode(position,0,999)
   )
   loop
+--    if l_sub_pinfos(r.sub_id).arg is not null and r.arg_pos>0 then
     if l_sub_pinfos(r.sub_id).arg.count>0 and r.arg_pos>0 then
       r.arg_desc:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).dsc;
       r.arg_exam:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).exv;      
