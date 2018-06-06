@@ -90,6 +90,7 @@ is
                   when 'TCELL'  then '<tr><td>'
                   when 'TCSEP'  then '</td><td>'
                   when 'TFOOT'  then null
+                  when 'META'   then null
                                 else '<'||lower(code)||'>'
         end
       when fmt='MD' then
@@ -121,6 +122,7 @@ is
         case code when 'THEAD'  then '</th></tr></thead><tbody>'
                   when 'TCELL'  then '</td></tr>'
                   when 'TFOOT'  then '</tbody></table>'
+                  when 'META'   then null
                                 else '</'||lower(code)||'>'||eol
         end
       when fmt='MD' then
@@ -334,7 +336,7 @@ begin
   order by subprogram_id, overload, decode(position,0,999)
   )
   loop
-    if l_sub_pinfos(r.sub_id).arg is not null and r.arg_pos>0 then
+    if l_sub_pinfos(r.sub_id).arg.count>0 and r.arg_pos>0 then
       r.arg_desc:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).dsc;
       r.arg_exam:=l_sub_pinfos(r.sub_id).arg(r.arg_pos).exv;      
     end if;
@@ -361,10 +363,15 @@ begin
                    ' ')
             ||rpad(in_out, max(case when position>0 then length(in_out) end) over (partition by subprogram_id),' ')
             ||'  '
-            ||data_type
+            ||case when data_type in ('TABLE','PL/SQL TABLE')
+                then case when type_owner<>user 
+                      then type_owner||'.' 
+                     end||type_name||'.'||type_subname 
+                else data_type 
+              end
            end as args_fmt,
            case when position=0 
-            then case when data_type='TABLE' 
+            then case when data_type in ('TABLE','PL/SQL TABLE')
                         then case when type_owner<>user 
                               then type_owner||'.' 
                              end||type_name||'.'||type_subname 
